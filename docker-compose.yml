@@ -1,7 +1,6 @@
 version: '3.8'
 
 services:
-  # MySQL Database
   mysql:
     image: mysql:8.0
     container_name: clicker-mysql
@@ -20,19 +19,39 @@ services:
     networks:
       - clicker-network
 
-  # Backend API
+  # Plugin Service (gRPC)
+  plugin:
+    image: komenpetch/clicker-plugin:v1.0.0
+    container_name: clicker-plugin
+    restart: unless-stopped
+    environment:
+      PORT: 50051
+    ports:
+      - "50051:50051"
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 50051 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - clicker-network
+
+  # Backend (Microkernel Core)
   backend:
-    image: komenpetch/clicker-backend:latest
+    image: komenpetch/clicker-backend:v2.0.0
     container_name: clicker-backend
     restart: unless-stopped
     environment:
       DATABASE_URL: mysql://root:${MYSQL_ROOT_PASSWORD}@mysql:3306/${MYSQL_DATABASE}
       PORT: 3001
+      PLUGIN_HOST: plugin:50051
     ports:
       - "3001:3001"
     depends_on:
       mysql:
         condition: service_healthy
+      plugin:
+        condition: service_started
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/health"]
       interval: 30s
@@ -43,11 +62,9 @@ services:
 
   # Frontend
   frontend:
-    image: komenpetch/clicker-frontend:latest
+    image: komenpetch/clicker-frontend:v2.0.0
     container_name: clicker-frontend
     restart: unless-stopped
-    environment:
-      REACT_APP_API_URL: http://localhost:3001
     ports:
       - "80:80"
     depends_on:
