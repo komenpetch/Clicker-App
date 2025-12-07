@@ -101,10 +101,7 @@ Swap between different game mechanics without changing core code:
 ### P2 - Auto Clicker Plugin
 - **Tag**: `komenpetch/clicker-plugin:p2`
 - **Features**:
-  - Auto Clicker I: +1 click/second, Cost: 20
-  - Auto Clicker II: +5 clicks/second, Cost: 100
-  - Auto Clicker III: +20 clicks/second, Cost: 500
-  - Click Boost: Each manual click gives 3 instead of 1, Cost: 50
+  - Auto Clicker: +1 click/second, Cost: 15
 
 ## How to Switch Plugins
 
@@ -260,5 +257,3 @@ docker exec clicker-mysql mysql -uroot -ppassword clicker_db --table -e "SELECT 
   - `value` - Current click count
   - `clicksPerClick` - Clicks per click
   - `upgrades` - Comma-separated upgrade IDs
-
-For detailed SQL commands and examples, see: [MYSQL-INSPECTION-GUIDE.md](../MYSQL-INSPECTION-GUIDE.md)
