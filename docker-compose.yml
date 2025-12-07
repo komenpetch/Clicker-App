@@ -19,9 +19,9 @@ services:
     networks:
       - clicker-network
 
-  # Plugin Service (gRPC)
+  # Plugin Service (gRPC) - Switch between :p1 (Double Click) and :p2 (Auto Clicker)
   plugin:
-    image: komenpetch/clicker-plugin:v1.0.0
+    image: komenpetch/clicker-plugin:p1 # change between :p1 and :p2 for different plugins
     container_name: clicker-plugin
     restart: unless-stopped
     environment:
@@ -62,7 +62,7 @@ services:
 
   # Frontend
   frontend:
-    image: komenpetch/clicker-frontend:v2.0.0
+    image: komenpetch/clicker-frontend:v3.0.0
     container_name: clicker-frontend
     restart: unless-stopped
     ports:
