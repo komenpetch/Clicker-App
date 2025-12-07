@@ -19,6 +19,27 @@ services:
     networks:
       - clicker-network
 
+  # RabbitMQ Message Queue
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: clicker-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-admin}
+    ports:
+      - "5672:5672"   # AMQP port
+      - "15672:15672" # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - clicker-network
+
   # Plugin Service (gRPC) - Switch between :p1 (Double Click) and :p2 (Auto Clicker)
   plugin:
     image: komenpetch/clicker-plugin:p1 # change between :p1 and :p2 for different plugins
@@ -38,17 +59,22 @@ services:
 
   # Backend (Microkernel Core)
   backend:
-    image: komenpetch/clicker-backend:v2.0.0
+    build:
+      context: ../clicker-app-back
+      dockerfile: Dockerfile
     container_name: clicker-backend
     restart: unless-stopped
     environment:
       DATABASE_URL: mysql://root:${MYSQL_ROOT_PASSWORD}@mysql:3306/${MYSQL_DATABASE}
       PORT: 3001
       PLUGIN_HOST: plugin:50051
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-admin}:${RABBITMQ_PASS:-admin}@rabbitmq:5672
     ports:
       - "3001:3001"
     depends_on:
       mysql:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
       plugin:
         condition: service_started
@@ -60,11 +86,61 @@ services:
     networks:
       - clicker-network
 
+  # Logs Service (History Tracking)
+  logs:
+    build:
+      context: ../clicker-app-logs
+      dockerfile: Dockerfile
+    container_name: clicker-logs
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: mysql://root:${MYSQL_ROOT_PASSWORD}@mysql:3306/${MYSQL_DATABASE}
+      PORT: 3002
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-admin}:${RABBITMQ_PASS:-admin}@rabbitmq:5672
+    ports:
+      - "3002:3002"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - clicker-network
+
+  # phpMyAdmin (MySQL Web Interface)
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: clicker-phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    ports:
+      - "8080:80"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - clicker-network
+
   # Frontend
   frontend:
-    image: komenpetch/clicker-frontend:v3.0.0
+    build:
+      context: ../clicker-app-front
+      dockerfile: Dockerfile
     container_name: clicker-frontend
     restart: unless-stopped
+    environment:
+      REACT_APP_API_URL: ""
+      REACT_APP_LOGS_API_URL: "http://localhost:3002"
     ports:
       - "80:80"
     depends_on:
@@ -74,6 +150,8 @@ services:
 
 volumes:
   mysql_data:
+    driver: local
+  rabbitmq_data:
     driver: local
 
 networks:
